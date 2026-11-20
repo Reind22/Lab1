@@ -36,6 +36,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
@@ -70,6 +71,7 @@
     <Compile Include="UserProfile.cs" />
     <Compile Include="Habit.cs" />
     <Compile Include="DailyStatistic.cs" />
+    <Compile Include="Storage\StateStorage.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs">

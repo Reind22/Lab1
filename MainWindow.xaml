@@ -14,8 +14,8 @@
         <!-- ==================== МЕНЮ ==================== -->
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="Файл">
-                <MenuItem Header="Сохранить"/>
-                <MenuItem Header="Загрузить"/>
+                <MenuItem Header="Сохранить" Click="SaveState_Click"/>
+                <MenuItem Header="Загрузить" Click="LoadState_Click"/>
                 <Separator/>
                 <MenuItem Header="Выход" Click="Exit_Click"/>
             </MenuItem>
@@ -33,7 +33,7 @@
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
                 <Button Content="Сохранить" ToolTip="Сохранить данные" Click="SaveProfile_Click"/>
-                <Button Content="Загрузить" ToolTip="Загрузить данные"/>
+                <Button Content="Загрузить" ToolTip="Загрузить данные" Click="LoadState_Click"/>
                 <Separator/>
                 <Button Content="Копировать" ToolTip="Копировать"/>
                 <Button Content="Вставить" ToolTip="Вставить"/>

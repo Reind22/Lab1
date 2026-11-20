@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -59,6 +60,12 @@ namespace WpflLab1
                 new DailyStatistic { Date = "28.02.2026", CompletedCount = 4, Percentage = "67%" },
             };
             StatsListView.ItemsSource = _statistics;
+
+            // При закрытии окна данные сохраняются, если включено автосохранение.
+            Closing += MainWindow_Closing;
+
+            // При запуске поднимаем то, что осталось с прошлого сеанса.
+            LoadStateFromDisk(false);
         }
 
         /// <summary>
@@ -176,6 +183,11 @@ namespace WpflLab1
 
             HabitNameTextBox.Clear();
             HabitTimeTextBox.Clear();
+
+            if (AutoSaveCheckBox.IsChecked == true)
+            {
+                SaveStateSilent();
+            }
         }
 
         /// <summary>
@@ -482,5 +494,192 @@ namespace WpflLab1
         {
             Application.Current.Shutdown();
         }
+
+        /// <summary>
+        /// Собирает текущее состояние экрана для записи в файл.
+        /// </summary>
+        /// <returns>Состояние с профилем, привычками и темой.</returns>
+        private AppState CollectState()
+        {
+            UserProfile profile = new UserProfile
+            {
+                FirstName = FirstNameTextBox.Text.Trim(),
+                LastName = LastNameTextBox.Text.Trim(),
+                Password = PasswordBox.Password,
+                BirthDate = BirthDatePicker.SelectedDate,
+                Education = (EducationComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString(),
+                Hobbies = GetSelectedHobbies(),
+                NotificationsEnabled = NotificationsCheckBox.IsChecked == true,
+                PublicStatistics = PublicStatsCheckBox.IsChecked == true,
+                AutoSave = AutoSaveCheckBox.IsChecked == true,
+                ActivityLevel = GetSelectedActivityLevel()
+            };
+
+            return new AppState
+            {
+                Profile = profile,
+                Habits = _habits.Select(h => new Habit
+                {
+                    Name = h.Name,
+                    Time = h.Time,
+                    IsCompleted = h.IsCompleted
+                }).ToList(),
+                IsDarkTheme = ThemeToggle.IsChecked == true
+            };
+        }
+
+        /// <summary>
+        /// Пункт меню «Файл → Сохранить»: проверяет профиль и пишет состояние в файл.
+        /// </summary>
+        private void SaveState_Click(object sender, RoutedEventArgs e)
+        {
+            string error = ValidateProfile();
+            if (error != null)
+            {
+                MessageBox.Show(error, "Ошибка валидации", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                StateStorage.Save(CollectState());
+                _currentProfile = CollectState().Profile;
+                StatusText.Text = "Данные сохранены";
+                MessageBox.Show("Данные сохранены в файл.", "Сохранение",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Не удалось сохранить данные: " + ex.Message,
+                    "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Пункт меню и кнопка панели «Загрузить»: читает состояние из файла.
+        /// </summary>
+        private void LoadState_Click(object sender, RoutedEventArgs e)
+        {
+            LoadStateFromDisk(true);
+        }
+
+        /// <summary>
+        /// Сохраняет состояние без сообщений — используется автосохранением.
+        /// </summary>
+        private void SaveStateSilent()
+        {
+            try
+            {
+                StateStorage.Save(CollectState());
+                StatusText.Text = "Автосохранение: " + DateTime.Now.ToString("HH:mm:ss");
+            }
+            catch (Exception)
+            {
+                // Молча: автосохранение не должно мешать работе пользователя.
+            }
+        }
+
+        /// <summary>
+        /// Загружает состояние из файла и переносит его в элементы интерфейса.
+        /// </summary>
+        /// <param name="showMessage">Показывать ли сообщение о результате.</param>
+        private void LoadStateFromDisk(bool showMessage)
+        {
+            AppState state;
+            if (!StateStorage.TryLoad(out state))
+            {
+                if (showMessage)
+                {
+                    MessageBox.Show("Сохранённых данных нет.", "Загрузка",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                return;
+            }
+
+            ApplyState(state);
+            StatusText.Text = "Данные загружены";
+
+            if (showMessage)
+            {
+                MessageBox.Show("Данные загружены из файла.", "Загрузка",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        /// <summary>
+        /// Переносит загруженное состояние в поля, таблицу привычек и тему.
+        /// </summary>
+        /// <param name="state">Ранее сохранённое состояние.</param>
+        private void ApplyState(AppState state)
+        {
+            if (state == null)
+            {
+                return;
+            }
+
+            UserProfile profile = state.Profile ?? new UserProfile();
+
+            FirstNameTextBox.Text = profile.FirstName ?? string.Empty;
+            LastNameTextBox.Text = profile.LastName ?? string.Empty;
+            PasswordBox.Password = profile.Password ?? string.Empty;
+            BirthDatePicker.SelectedDate = profile.BirthDate;
+
+            EducationComboBox.SelectedIndex = -1;
+            foreach (object item in EducationComboBox.Items)
+            {
+                var comboItem = item as ComboBoxItem;
+                if (comboItem != null && comboItem.Content?.ToString() == profile.Education)
+                {
+                    EducationComboBox.SelectedItem = comboItem;
+                    break;
+                }
+            }
+
+            HobbiesListBox.UnselectAll();
+            foreach (object item in HobbiesListBox.Items)
+            {
+                var listItem = item as ListBoxItem;
+                if (listItem != null && profile.Hobbies != null
+                    && profile.Hobbies.Contains(listItem.Content?.ToString()))
+                {
+                    listItem.IsSelected = true;
+                }
+            }
+
+            NotificationsCheckBox.IsChecked = profile.NotificationsEnabled;
+            PublicStatsCheckBox.IsChecked = profile.PublicStatistics;
+            AutoSaveCheckBox.IsChecked = profile.AutoSave;
+
+            LowActivityRadio.IsChecked = profile.ActivityLevel == "Низкий";
+            MediumActivityRadio.IsChecked = profile.ActivityLevel == "Средний";
+            HighActivityRadio.IsChecked = profile.ActivityLevel == "Высокий";
+
+            _habits.Clear();
+            if (state.Habits != null)
+            {
+                foreach (Habit habit in state.Habits)
+                {
+                    _habits.Add(habit);
+                }
+            }
+
+            ApplyTheme(state.IsDarkTheme);
+            ThemeToggle.IsChecked = state.IsDarkTheme;
+
+            _currentProfile = profile;
+            HabitCountText.Text = $"Привычек: {_habits.Count}";
+        }
+
+        /// <summary>
+        /// Сохраняет данные при закрытии окна, если включено автосохранение.
+        /// </summary>
+        private void MainWindow_Closing(object sender, CancelEventArgs e)
+        {
+            if (AutoSaveCheckBox.IsChecked == true)
+            {
+                SaveStateSilent();
+            }
+        }
+
     }
 }
